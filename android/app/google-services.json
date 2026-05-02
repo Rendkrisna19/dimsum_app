@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "717547327403",
+    "project_id": "dimsum-app",
+    "storage_bucket": "dimsum-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:717547327403:android:99f039b9793afb16354cee",
+        "android_client_info": {
+          "package_name": "com.example.dimsum_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCsokeMj22OtgxeHVfkaqyGRzVjtAZ_ges"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:717547327403:android:782a3e4b853b5f3d354cee",
+        "android_client_info": {
+          "package_name": "dimsum.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCsokeMj22OtgxeHVfkaqyGRzVjtAZ_ges"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
