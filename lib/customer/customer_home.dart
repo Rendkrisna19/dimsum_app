@@ -6,6 +6,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../theme/app_colors.dart';
 import 'customer_all_menu_page.dart'; 
 import './widget/customer_location_header.dart'; // Pastikan path widget ini benar
+import 'cart_manager.dart'; // Import sistem memori keranjang
+import 'customer_cart_page.dart'; // Import halaman keranjang
 
 class CustomerHome extends StatefulWidget {
   const CustomerHome({super.key});
@@ -53,7 +55,7 @@ class _CustomerHomeState extends State<CustomerHome> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Expanded(child: CustomerLocationHeader()),
-                      // Ikon Notifikasi dan Keranjang Sementara
+                      // Ikon Notifikasi dan Keranjang Real-time
                       Row(
                         children: [
                           Container(
@@ -61,14 +63,36 @@ class _CustomerHomeState extends State<CustomerHome> {
                             child: IconButton(icon: const Icon(Icons.notifications_none, color: Colors.white), onPressed: () {}),
                           ),
                           const SizedBox(width: 10),
-                          Container(
-                            decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                            child: IconButton(
-                              icon: const Icon(Icons.shopping_cart_outlined, color: AppColors.primaryOrange), 
-                              onPressed: () {
-                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Halaman Keranjang segera hadir!')));
-                              }
-                            ),
+                          
+                          // IKON KERANJANG DENGAN BADGE ANGKA
+                          ValueListenableBuilder<List<Map<String, dynamic>>>(
+                            valueListenable: CartManager.instance.cartItems,
+                            builder: (context, cart, child) {
+                              int totalItems = cart.fold(0, (sum, item) => sum + (item['qty'] as int));
+                              return Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  Container(
+                                    decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                                    child: IconButton(
+                                      icon: const Icon(Icons.shopping_cart_outlined, color: AppColors.primaryOrange), 
+                                      onPressed: () {
+                                        Navigator.push(context, MaterialPageRoute(builder: (_) => const CustomerCartPage()));
+                                      }
+                                    ),
+                                  ),
+                                  if (totalItems > 0)
+                                    Positioned(
+                                      right: 0, top: 0,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(5),
+                                        decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                                        child: Text('$totalItems', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                                      ),
+                                    )
+                                ],
+                              );
+                            },
                           ),
                         ],
                       )
@@ -189,10 +213,14 @@ class _CustomerHomeState extends State<CustomerHome> {
                   shrinkWrap: true,
                   itemCount: snapshot.data!.docs.length,
                   itemBuilder: (context, index) {
-                    final data = snapshot.data!.docs[index].data() as Map<String, dynamic>;
+                    final doc = snapshot.data!.docs[index];
+                    final data = doc.data() as Map<String, dynamic>;
+                    data['id'] = doc.id; // Menyimpan ID dokumen untuk keranjang
+
                     double hargaAsli = (data['harga_asli'] ?? 0).toDouble();
                     double hargaDiskon = (data['harga_diskon'] ?? 0).toDouble();
                     bool adaDiskon = hargaDiskon > 0 && hargaDiskon < hargaAsli;
+                    double hargaFinal = adaDiskon ? hargaDiskon : hargaAsli;
                     String gambarBase64 = data['gambar_base64'] ?? '';
                     String idToko = data['id_toko'] ?? ''; // ID Cabang pembuat produk
 
@@ -251,7 +279,7 @@ class _CustomerHomeState extends State<CustomerHome> {
                                     // ----------------------------------
 
                                     if (adaDiskon) Text('Rp ${hargaAsli.toInt()}', style: const TextStyle(color: Colors.grey, fontSize: 12, decoration: TextDecoration.lineThrough)),
-                                    Text('Rp ${adaDiskon ? hargaDiskon.toInt() : hargaAsli.toInt()}', style: const TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.bold, fontSize: 16)),
+                                    Text('Rp ${hargaFinal.toInt()}', style: const TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.bold, fontSize: 16)),
                                   ],
                                 ),
                               ),
@@ -260,7 +288,13 @@ class _CustomerHomeState extends State<CustomerHome> {
                                 child: IconButton(
                                   icon: const Icon(Icons.add, color: Colors.white),
                                   onPressed: () {
-                                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ditambahkan ke keranjang (UI coming soon)'), duration: Duration(seconds: 1)));
+                                    // FUNGSI ADD TO CART ASLI
+                                    if ((data['stok'] ?? 0) > 0) {
+                                      CartManager.instance.addToCart({...data, 'harga_final': hargaFinal});
+                                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Masuk Keranjang! 🛒'), duration: Duration(milliseconds: 800)));
+                                    } else {
+                                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Stok Habis!'), backgroundColor: Colors.red));
+                                    }
                                   },
                                 ),
                               )
