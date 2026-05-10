@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'customer_home.dart';
 import './widget/custom_bottom_nav.dart';
 import 'customer_profile_page.dart';
+import 'customer_favorite_page.dart';
+import 'customer_order_page.dart';
 
 class CustomerMain extends StatefulWidget {
   const CustomerMain({super.key});
@@ -16,8 +18,8 @@ class _CustomerMainState extends State<CustomerMain> {
   // Daftar halaman berdasarkan tab yang diklik
   final List<Widget> _pages = [
     const CustomerHome(),
-    const Center(child: Text('Halaman Favorit (Coming Soon)')),
-    const Center(child: Text('Halaman Chat (Coming Soon)')),
+    const CustomerFavoritePage(),
+    const CustomerOrderPage(),
     const CustomerProfilePage(),
   ];
 

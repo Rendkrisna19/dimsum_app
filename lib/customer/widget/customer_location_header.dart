@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:http/http.dart' as http; // Package baru
+import 'package:http/http.dart' as http; 
+import 'package:firebase_auth/firebase_auth.dart'; // Tambahan wajib
+import 'package:cloud_firestore/cloud_firestore.dart'; // Tambahan wajib
 import '../../theme/app_colors.dart';
 
 class CustomerLocationHeader extends StatefulWidget {
@@ -24,7 +26,7 @@ class _CustomerLocationHeaderState extends State<CustomerLocationHeader> {
     _getCurrentLocation();
   }
 
-  // Fungsi Cek Izin dan Dapatkan Lokasi GPS
+  // Fungsi Cek Izin, Dapatkan Lokasi GPS, dan Simpan ke Database
   Future<void> _getCurrentLocation() async {
     bool serviceEnabled;
     LocationPermission permission;
@@ -58,44 +60,65 @@ class _CustomerLocationHeaderState extends State<CustomerLocationHeader> {
         });
       }
 
-      // 2. Ubah Koordinat Jadi Teks Alamat via OpenStreetMap API (Support Web & Android)
+      // 2. Ubah Koordinat Jadi Teks Alamat via OpenStreetMap API
       final url = Uri.parse('https://nominatim.openstreetmap.org/reverse?format=json&lat=${position.latitude}&lon=${position.longitude}');
       final response = await http.get(url, headers: {
-        'User-Agent': 'dimsum_app/1.0', // Wajib diisi agar tidak diblokir server OSM
+        'User-Agent': 'dimsum_app/1.0', 
       });
+
+      String finalAddress = "Lokasi Ditemukan";
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final address = data['address'] ?? {};
 
-        // Ambil data kelurahan/kecamatan dan kota
         String daerah = address['suburb'] ?? address['village'] ?? address['neighbourhood'] ?? '';
         String kota = address['city'] ?? address['town'] ?? address['county'] ?? '';
 
-        if (mounted) {
-          setState(() {
-            if (daerah.isNotEmpty && kota.isNotEmpty) {
-              _currentAddress = "$daerah, $kota";
-            } else if (data['display_name'] != null) {
-              // Jika data spesifik kosong, potong nama lengkap alamatnya (ambil 2 kata pertama)
-              List<String> addressParts = data['display_name'].toString().split(',');
-              _currentAddress = addressParts.take(2).join(',').trim();
-            } else {
-              _currentAddress = "Lokasi Ditemukan";
-            }
-            _isLoading = false;
-          });
+        if (daerah.isNotEmpty && kota.isNotEmpty) {
+          finalAddress = "$daerah, $kota";
+        } else if (data['display_name'] != null) {
+          List<String> addressParts = data['display_name'].toString().split(',');
+          finalAddress = addressParts.take(2).join(',').trim();
         }
-      } else {
-        throw Exception('Gagal menghubungi server peta');
       }
+
+      if (mounted) {
+        setState(() {
+          _currentAddress = finalAddress;
+          _isLoading = false;
+        });
+      }
+
+      // 3. SIMPAN LOKASI KE FIRESTORE (USER PROFILE)
+      User? user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        // Menggunakan SetOptions(merge: true) agar tidak menimpa data lain seperti nama/role
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+          'latitude': position.latitude,
+          'longitude': position.longitude,
+          'alamat_detail': finalAddress,
+          'diupdate_pada': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+
     } catch (e) {
-      // Fallback: Jika internet jelek/error API, tampilkan saja angka koordinatnya daripada bilang gagal
+      // Fallback jika API Maps gagal tapi GPS berhasil
       if (mounted && _currentPosition != null) {
         setState(() {
           _currentAddress = "Titik: ${_currentPosition!.latitude.toStringAsFixed(3)}, ${_currentPosition!.longitude.toStringAsFixed(3)}";
           _isLoading = false;
         });
+
+        // Tetap simpan koordinat ke Firestore meskipun API alamat gagal
+        User? user = FirebaseAuth.instance.currentUser;
+        if (user != null) {
+          await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+            'latitude': _currentPosition!.latitude,
+            'longitude': _currentPosition!.longitude,
+            'diupdate_pada': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        }
       }
     }
   }
@@ -113,7 +136,7 @@ class _CustomerLocationHeaderState extends State<CustomerLocationHeader> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         clipBehavior: Clip.antiAlias,
         child: SizedBox(
-          width: 500, // Membatasi lebar maksimum di Web
+          width: 500, 
           height: 400,
           child: Stack(
             children: [

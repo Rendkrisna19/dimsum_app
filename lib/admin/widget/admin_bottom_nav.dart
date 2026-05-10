@@ -60,10 +60,15 @@ class AdminBottomNav extends StatelessWidget {
             icon: Icon(Icons.people_alt_rounded),
             label: 'Pengguna',
           ),
+           BottomNavigationBarItem(
+            icon: Icon(Icons.receipt_long_rounded),
+            label: 'Transaksi',
+          ),
           BottomNavigationBarItem(
             icon: Icon(Icons.settings_rounded),
             label: 'Setting',
           ),
+         
         ],
       ),
     );

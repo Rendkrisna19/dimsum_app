@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../theme/app_colors.dart';
 import 'customer_all_menu_page.dart'; 
 import './widget/customer_location_header.dart'; // Pastikan path widget ini benar
+import './widget/active_order_widget.dart';
 import 'cart_manager.dart'; // Import sistem memori keranjang
 import 'customer_cart_page.dart'; // Import halaman keranjang
 
@@ -35,10 +36,13 @@ class _CustomerHomeState extends State<CustomerHome> {
 
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      body: Stack(
+        children: [
+          SingleChildScrollView(
+            padding: const EdgeInsets.only(bottom: 140),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
             // 1. TOP HEADER BERWARNA ORANGE
             Container(
               padding: const EdgeInsets.only(top: 60, left: 20, right: 20, bottom: 30),
@@ -97,6 +101,7 @@ class _CustomerHomeState extends State<CustomerHome> {
                         ],
                       )
                     ],
+                    
                   ),
                   const SizedBox(height: 20),
                   // Search Bar Modern
@@ -224,7 +229,6 @@ class _CustomerHomeState extends State<CustomerHome> {
                     String gambarBase64 = data['gambar_base64'] ?? '';
                     String idToko = data['id_toko'] ?? ''; // ID Cabang pembuat produk
 
-                    // MENGAMBIL NAMA CABANG BERDASARKAN id_toko
                     return FutureBuilder<DocumentSnapshot>(
                       future: FirebaseFirestore.instance.collection('toko').doc(idToko).get(),
                       builder: (context, tokoSnapshot) {
@@ -260,8 +264,6 @@ class _CustomerHomeState extends State<CustomerHome> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(data['nama_produk'] ?? '-', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16), maxLines: 1, overflow: TextOverflow.ellipsis),
-                                    
-                                    // --- BADGE NAMA CABANG / TENANT ---
                                     const SizedBox(height: 4),
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -276,8 +278,6 @@ class _CustomerHomeState extends State<CustomerHome> {
                                       ),
                                     ),
                                     const SizedBox(height: 6),
-                                    // ----------------------------------
-
                                     if (adaDiskon) Text('Rp ${hargaAsli.toInt()}', style: const TextStyle(color: Colors.grey, fontSize: 12, decoration: TextDecoration.lineThrough)),
                                     Text('Rp ${hargaFinal.toInt()}', style: const TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.bold, fontSize: 16)),
                                   ],
@@ -288,7 +288,6 @@ class _CustomerHomeState extends State<CustomerHome> {
                                 child: IconButton(
                                   icon: const Icon(Icons.add, color: Colors.white),
                                   onPressed: () {
-                                    // FUNGSI ADD TO CART ASLI
                                     if ((data['stok'] ?? 0) > 0) {
                                       CartManager.instance.addToCart({...data, 'harga_final': hargaFinal});
                                       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Masuk Keranjang! 🛒'), duration: Duration(milliseconds: 800)));
@@ -310,8 +309,12 @@ class _CustomerHomeState extends State<CustomerHome> {
           ],
         ),
       ),
-    );
+      const ActiveOrderWidget(),
+    ],
+  ),
+);
   }
+  
 
   // Widget Helper untuk mempermudah render item Kategori
   Widget _buildCategoryItem({required String? id, required String name, required bool isSelected, required VoidCallback onTap}) {

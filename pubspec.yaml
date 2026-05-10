@@ -49,6 +49,9 @@ dependencies:
   http: ^1.6.0
   pdf: ^3.12.0
   printing: ^5.14.3
+  webview_flutter: ^4.13.1
+  flutter_dotenv: ^6.0.1
+  url_launcher: ^6.3.2
 
 
 dev_dependencies:
@@ -79,6 +82,7 @@ flutter:
     - assets/banner3.jpg
     - assets/dimsum1.jpg
     - assets/dimsum2.jpg
+    - assets/lottie/delivery.json
 
   # To add assets to your application, add an assets section, like this:
   # assets:

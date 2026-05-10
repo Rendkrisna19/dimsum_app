@@ -36,13 +36,33 @@ class CustomBottomNav extends StatelessWidget {
           unselectedItemColor: Colors.grey.shade400,
           showSelectedLabels: true,
           showUnselectedLabels: true,
-          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.normal, fontSize: 12),
+          selectedLabelStyle: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 12,
+          ),
+          unselectedLabelStyle: const TextStyle(
+            fontWeight: FontWeight.normal,
+            fontSize: 12,
+          ),
           items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Home'),
-            BottomNavigationBarItem(icon: Icon(Icons.favorite_border), label: 'Favorite'),
-            BottomNavigationBarItem(icon: Icon(Icons.chat_bubble_outline), label: 'Chat'),
-            BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Profile'),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.home_filled),
+              label: 'Home',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.favorite_border),
+              label: 'Favorite',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(
+                Icons.receipt_long_rounded,
+              ), // Ikon kertas/struk yang lebih cocok untuk pesanan
+              label: 'Riwayat Order',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.person_outline),
+              label: 'Profile',
+            ),
           ],
         ),
       ),
