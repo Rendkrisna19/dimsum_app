@@ -14,42 +14,38 @@ class AdminTransactionPage extends StatefulWidget {
 class _AdminTransactionPageState extends State<AdminTransactionPage> {
   final user = FirebaseAuth.instance.currentUser;
   String? _idToko;
+  String? _userRole;
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _fetchIdToko();
+    _fetchUserData();
   }
 
-  // Mengambil id_toko milik admin yang sedang login
-  Future<void> _fetchIdToko() async {
+  // Mengambil id_toko dan role milik user yang sedang login
+  Future<void> _fetchUserData() async {
     if (user != null) {
       final doc = await FirebaseFirestore.instance.collection('users').doc(user!.uid).get();
       if (mounted) {
         setState(() {
           _idToko = doc.data()?['id_toko'];
+          _userRole = doc.data()?['role'];
           _isLoading = false;
         });
       }
     }
   }
 
-  // --- FUNGSI BUKA WHATSAPP ---
+  // --- FUNGSI BUKA WHATSAPP & MAPS ---
   Future<void> _bukaWhatsApp(String phone, String orderId) async {
     if (phone.isEmpty) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nomor WA Customer tidak ditemukan')));
       return;
     }
-    
-    String formattedPhone = phone;
-    if (formattedPhone.startsWith('0')) {
-      formattedPhone = '62${formattedPhone.substring(1)}';
-    }
-
+    String formattedPhone = phone.startsWith('0') ? '62${phone.substring(1)}' : phone;
     String pesan = "Halo kak, pesanan Dimsum dengan Order ID *$orderId* sedang kami proses ya!";
     final Uri waUrl = Uri.parse("https://wa.me/$formattedPhone?text=${Uri.encodeComponent(pesan)}");
-
     try {
       await launchUrl(waUrl, mode: LaunchMode.externalApplication);
     } catch (e) {
@@ -57,16 +53,12 @@ class _AdminTransactionPageState extends State<AdminTransactionPage> {
     }
   }
 
-  // --- FUNGSI BUKA GOOGLE MAPS MENGGUNAKAN KOORDINAT (LAT/LNG) ---
   Future<void> _bukaMaps(double? lat, double? lng) async {
     if (lat == null || lng == null) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Titik koordinat pelanggan tidak ditemukan')));
       return;
     }
-    
-    // Melempar titik akurat ke Google Maps
     final Uri mapsUrl = Uri.parse("https://www.google.com/maps/search/?api=1&query=$lat,$lng");
-
     try {
       await launchUrl(mapsUrl, mode: LaunchMode.externalApplication);
     } catch (e) {
@@ -74,27 +66,27 @@ class _AdminTransactionPageState extends State<AdminTransactionPage> {
     }
   }
 
-  // Fungsi untuk mengubah status pesanan
+  // Fungsi untuk mengubah status pesanan (ONLINE)
   Future<void> _updateStatus(String docId, String newStatus, {double? latMaps, double? lngMaps}) async {
     try {
       await FirebaseFirestore.instance.collection('pesanan').doc(docId).update({
         'status_pesanan': newStatus,
         'diupdate_pada': FieldValue.serverTimestamp(),
       });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Status pesanan diubah menjadi: $newStatus'), backgroundColor: Colors.green));
-      }
-
-      // Jika statusnya Sedang Diantar, otomatis buka Maps MENGGUNAKAN KOORDINAT
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Status pesanan diubah menjadi: $newStatus'), backgroundColor: Colors.green));
       if (newStatus == 'Sedang Diantar' && latMaps != null && lngMaps != null) {
         _bukaMaps(latMaps, lngMaps);
       }
-
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal mengubah status: $e'), backgroundColor: Colors.red));
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal mengubah status: $e'), backgroundColor: Colors.red));
     }
+  }
+
+  // Format Tanggal
+  String _formatDate(Timestamp? timestamp) {
+    if (timestamp == null) return '-';
+    DateTime date = timestamp.toDate();
+    return "${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}";
   }
 
   @override
@@ -107,49 +99,62 @@ class _AdminTransactionPageState extends State<AdminTransactionPage> {
       return const Scaffold(backgroundColor: AppColors.background, body: Center(child: Text('Akses Ditolak: Anda tidak terikat dengan cabang manapun.')));
     }
 
+    // JIKA ROLE ADALAH KASIR, TAMPILKAN HANYA 1 HALAMAN (RIWAYAT POS)
+    if (_userRole == 'kasir') {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          flexibleSpace: Container(decoration: const BoxDecoration(gradient: LinearGradient(colors: [AppColors.fireRed, AppColors.fireOrange]))),
+          title: const Text('Riwayat Transaksi Kasir', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          centerTitle: true,
+        ),
+        body: _buildPosHistoryList(), // Memanggil widget khusus POS
+      );
+    }
+
+    // JIKA ROLE ADALAH ADMIN, TAMPILKAN TAB LENGKAP (ONLINE + POS)
     return DefaultTabController(
-      length: 2,
+      length: 3, // 3 Tab: Aktif Online, Selesai Online, Riwayat Kasir
       child: Scaffold(
         backgroundColor: AppColors.background,
         appBar: AppBar(
-          flexibleSpace: Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(colors: [AppColors.fireRed, AppColors.fireOrange]),
-            ),
-          ),
-          title: const Text('Pesanan Pelanggan', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          flexibleSpace: Container(decoration: const BoxDecoration(gradient: LinearGradient(colors: [AppColors.fireRed, AppColors.fireOrange]))),
+          title: const Text('Semua Transaksi', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           centerTitle: true,
           bottom: const TabBar(
+            isScrollable: true,
             labelColor: Colors.white,
             unselectedLabelColor: Colors.white70,
             indicatorColor: Colors.white,
             tabs: [
-              Tab(text: 'Pesanan Aktif'),
-              Tab(text: 'Selesai / Riwayat'),
+              Tab(text: 'Online Aktif'),
+              Tab(text: 'Online Selesai'),
+              Tab(text: 'Riwayat Kasir POS'),
             ],
           ),
         ),
         body: TabBarView(
           children: [
-            _buildOrderList(isCompleted: false),
-            _buildOrderList(isCompleted: true),
+            _buildOrderList(isCompleted: false), // Tab 1
+            _buildOrderList(isCompleted: true),  // Tab 2
+            _buildPosHistoryList(),              // Tab 3
           ],
         ),
       ),
     );
   }
 
+  // =========================================================================
+  // WIDGET 1: DAFTAR PESANAN ONLINE (DELIVERY/COD)
+  // =========================================================================
   Widget _buildOrderList({required bool isCompleted}) {
-    List<String> statusList = isCompleted 
-        ? ['Selesai'] 
-        : ['Sedang Disiapkan', 'Sedang Diantar']; 
+    List<String> statusList = isCompleted ? ['Selesai', 'Dibatalkan'] : ['Sedang Disiapkan', 'Sedang Diantar']; 
 
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection('pesanan').where('id_toko', isEqualTo: _idToko).snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator(color: AppColors.fireOrange));
-        
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return _buildEmptyState(isCompleted);
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return _buildEmptyState('Tidak ada pesanan online.');
 
         var docs = snapshot.data!.docs.where((doc) {
           final data = doc.data() as Map<String, dynamic>;
@@ -163,7 +168,7 @@ class _AdminTransactionPageState extends State<AdminTransactionPage> {
           return tB.compareTo(tA); 
         });
 
-        if (docs.isEmpty) return _buildEmptyState(isCompleted);
+        if (docs.isEmpty) return _buildEmptyState('Tidak ada pesanan online.');
 
         return ListView.builder(
           padding: const EdgeInsets.all(16),
@@ -187,15 +192,10 @@ class _AdminTransactionPageState extends State<AdminTransactionPage> {
 
             return Container(
               margin: const EdgeInsets.only(bottom: 20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 10, offset: const Offset(0, 5))],
-              ),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 10, offset: const Offset(0, 5))]),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // HEADER KARTU
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: const BorderRadius.vertical(top: Radius.circular(20))),
@@ -219,7 +219,6 @@ class _AdminTransactionPageState extends State<AdminTransactionPage> {
                     ),
                   ),
                   
-                  // DETAIL PELANGGAN & ITEM
                   Padding(
                     padding: const EdgeInsets.all(16),
                     child: FutureBuilder<DocumentSnapshot>(
@@ -230,7 +229,6 @@ class _AdminTransactionPageState extends State<AdminTransactionPage> {
                         double? latCustomer;
                         double? lngCustomer;
 
-                        // KITA AMBIL KOORDINAT (LAT/LNG) DARI DATABASE USER
                         if (userSnap.hasData && userSnap.data!.exists) {
                           var userData = userSnap.data!.data() as Map<String, dynamic>;
                           waCustomer = userData['whatsapp'] ?? '';
@@ -245,104 +243,38 @@ class _AdminTransactionPageState extends State<AdminTransactionPage> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Row(
-                                  children: [
-                                    const Icon(Icons.person, size: 16, color: Colors.grey),
-                                    const SizedBox(width: 8),
-                                    Text(pelanggan, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                                  ],
-                                ),
-                                Text('Jarak: ${data['jarak_teks']}', style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 13)),
+                                Row(children: [const Icon(Icons.person, size: 16, color: Colors.grey), const SizedBox(width: 8), Text(pelanggan, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15))]),
+                                Text('Jarak: ${data['jarak_teks'] ?? '-'}', style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 13)),
                               ],
                             ),
                             const SizedBox(height: 10),
+                            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [const Icon(Icons.location_on, size: 16, color: AppColors.fireRed), const SizedBox(width: 8), Expanded(child: Text(alamatDetail, style: const TextStyle(color: Colors.grey, fontSize: 13)))]),
                             
-                            // ALAMAT CUSTOMER
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Icon(Icons.location_on, size: 16, color: AppColors.fireRed),
-                                const SizedBox(width: 8),
-                                Expanded(child: Text(alamatDetail, style: const TextStyle(color: Colors.grey, fontSize: 13))),
-                              ],
-                            ),
-
-                            // TOMBOL MAPS & WHATSAPP
                             if (!isCompleted) ...[
                               const SizedBox(height: 15),
                               Row(
                                 children: [
-                                  Expanded(
-                                    child: OutlinedButton.icon(
-                                      style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.green), padding: const EdgeInsets.symmetric(vertical: 8)),
-                                      icon: const Icon(Icons.chat, color: Colors.green, size: 18),
-                                      label: const Text('Chat WA', style: TextStyle(color: Colors.green, fontSize: 12, fontWeight: FontWeight.bold)),
-                                      onPressed: () => _bukaWhatsApp(waCustomer, orderId),
-                                    ),
-                                  ),
+                                  Expanded(child: OutlinedButton.icon(style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.green), padding: const EdgeInsets.symmetric(vertical: 8)), icon: const Icon(Icons.chat, color: Colors.green, size: 18), label: const Text('Chat WA', style: TextStyle(color: Colors.green, fontSize: 12, fontWeight: FontWeight.bold)), onPressed: () => _bukaWhatsApp(waCustomer, orderId))),
                                   const SizedBox(width: 10),
-                                  Expanded(
-                                    child: OutlinedButton.icon(
-                                      style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.blue), padding: const EdgeInsets.symmetric(vertical: 8)),
-                                      icon: const Icon(Icons.map, color: Colors.blue, size: 18),
-                                      label: const Text('Buka Maps', style: TextStyle(color: Colors.blue, fontSize: 12, fontWeight: FontWeight.bold)),
-                                      // TOMBOL INI SEKARANG MELEMPAR KOORDINAT ASLI
-                                      onPressed: () => _bukaMaps(latCustomer, lngCustomer),
-                                    ),
-                                  ),
+                                  Expanded(child: OutlinedButton.icon(style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.blue), padding: const EdgeInsets.symmetric(vertical: 8)), icon: const Icon(Icons.map, color: Colors.blue, size: 18), label: const Text('Buka Maps', style: TextStyle(color: Colors.blue, fontSize: 12, fontWeight: FontWeight.bold)), onPressed: () => _bukaMaps(latCustomer, lngCustomer))),
                                 ],
                               ),
                             ],
 
                             const Padding(padding: EdgeInsets.symmetric(vertical: 10), child: Divider()),
-                            
-                            ...items.map((item) => Padding(
-                              padding: const EdgeInsets.only(bottom: 5),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text('${item['qty']}x ${item['nama_produk']}', style: const TextStyle(fontSize: 13)),
-                                  Text('Rp ${(item['harga_final'] * item['qty']).toInt()}', style: const TextStyle(fontSize: 13)),
-                                ],
-                              ),
-                            )),
-                            
+                            ...items.map((item) => Padding(padding: const EdgeInsets.only(bottom: 5), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text('${item['qty']}x ${item['nama_produk']}', style: const TextStyle(fontSize: 13)), Text('Rp ${(item['harga_final'] * item['qty']).toInt()}', style: const TextStyle(fontSize: 13))]))),
                             const SizedBox(height: 10),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Text('Ongkos Kirim', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                Text('Rp ${(data['ongkir'] ?? 0).toInt()}', style: const TextStyle(fontSize: 12, color: Colors.blue)),
-                              ],
-                            ),
+                            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('Ongkos Kirim', style: TextStyle(fontSize: 12, color: Colors.grey)), Text('Rp ${(data['ongkir'] ?? 0).toInt()}', style: const TextStyle(fontSize: 12, color: Colors.blue))]),
                             const SizedBox(height: 5),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Text('TOTAL BAYAR', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                                Text('Rp ${total.toInt()}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.primaryOrange)),
-                              ],
-                            ),
+                            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('TOTAL BAYAR', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)), Text('Rp ${total.toInt()}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.primaryOrange))]),
 
-                            // TOMBOL AKSI UPDATE STATUS 
                             if (!isCompleted) ...[
                               const SizedBox(height: 15),
                               SizedBox(
                                 width: double.infinity,
                                 child: status == 'Sedang Disiapkan'
-                                  ? ElevatedButton.icon(
-                                      style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                                      icon: const Icon(Icons.two_wheeler, color: Colors.white, size: 20),
-                                      label: const Text('ANTAR PESANAN & BUKA MAPS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                                      // TOMBOL INI JUGA MELEMPAR KOORDINAT ASLI
-                                      onPressed: () => _updateStatus(doc.id, 'Sedang Diantar', latMaps: latCustomer, lngMaps: lngCustomer),
-                                    )
-                                  : ElevatedButton.icon(
-                                      style: ElevatedButton.styleFrom(backgroundColor: Colors.green, padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                                      icon: const Icon(Icons.check_circle, color: Colors.white, size: 20),
-                                      label: const Text('PESANAN SELESAI', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                                      onPressed: () => _updateStatus(doc.id, 'Selesai'),
-                                    ),
+                                  ? ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))), icon: const Icon(Icons.two_wheeler, color: Colors.white, size: 20), label: const Text('ANTAR PESANAN & MAPS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)), onPressed: () => _updateStatus(doc.id, 'Sedang Diantar', latMaps: latCustomer, lngMaps: lngCustomer))
+                                  : ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: Colors.green, padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))), icon: const Icon(Icons.check_circle, color: Colors.white, size: 20), label: const Text('PESANAN SELESAI', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)), onPressed: () => _updateStatus(doc.id, 'Selesai')),
                               )
                             ]
                           ],
@@ -359,14 +291,93 @@ class _AdminTransactionPageState extends State<AdminTransactionPage> {
     );
   }
 
-  Widget _buildEmptyState(bool isCompleted) {
+  // =========================================================================
+  // WIDGET 2: DAFTAR RIWAYAT TRANSAKSI KASIR (OFFLINE POS)
+  // =========================================================================
+  Widget _buildPosHistoryList() {
+    return StreamBuilder<QuerySnapshot>(
+      // Mengurutkan langsung dari database dari yang terbaru
+      stream: FirebaseFirestore.instance.collection('transaksi_kasir')
+          .where('id_toko', isEqualTo: _idToko)
+          .orderBy('waktu_beli', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator(color: AppColors.fireOrange));
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return _buildEmptyState('Belum ada transaksi kasir.');
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: snapshot.data!.docs.length,
+          itemBuilder: (context, index) {
+            final doc = snapshot.data!.docs[index];
+            final data = doc.data() as Map<String, dynamic>;
+
+            String noStruk = data['no_struk'] ?? doc.id.substring(0, 8).toUpperCase();
+            String kasirName = data['nama_kasir'] ?? 'Kasir';
+            double totalBelanja = (data['total_belanja'] ?? 0).toDouble();
+            double tunai = (data['uang_tunai'] ?? 0).toDouble();
+            double kembalian = (data['uang_kembali'] ?? 0).toDouble();
+            List items = data['daftar_belanjaan'] ?? [];
+            Timestamp? waktuBeli = data['waktu_beli'];
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 15),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 5))]),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(children: [const Icon(Icons.receipt_long, color: Colors.teal, size: 18), const SizedBox(width: 8), Text(noStruk, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14))]),
+                      Text(_formatDate(waktuBeli), style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                    ],
+                  ),
+                  const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Divider(height: 1)),
+                  
+                  // Daftar Barang POS
+                  ...items.map((item) => Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('${item['jumlah_beli']}x ${item['nama_produk']}', style: const TextStyle(fontSize: 13, color: AppColors.textDark)),
+                        Text('Rp ${(item['harga'] * item['jumlah_beli']).toInt()}', style: const TextStyle(fontSize: 13, color: AppColors.textDark)),
+                      ],
+                    ),
+                  )),
+                  
+                  const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Divider(height: 1)),
+                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('Total Belanja', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)), Text('Rp ${totalBelanja.toInt()}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.primaryOrange))]),
+                  const SizedBox(height: 4),
+                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('Tunai', style: TextStyle(color: Colors.grey, fontSize: 12)), Text('Rp ${tunai.toInt()}', style: const TextStyle(color: Colors.grey, fontSize: 12))]),
+                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('Kembalian', style: TextStyle(color: Colors.grey, fontSize: 12)), Text('Rp ${kembalian.toInt()}', style: const TextStyle(color: Colors.grey, fontSize: 12))]),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      const Icon(Icons.person, size: 14, color: Colors.grey),
+                      const SizedBox(width: 4),
+                      Text('Kasir: $kasirName', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                    ],
+                  )
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildEmptyState(String message) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(Icons.receipt_long, size: 80, color: Colors.grey.shade300),
           const SizedBox(height: 10),
-          Text(isCompleted ? 'Belum ada riwayat pesanan.' : 'Tidak ada pesanan aktif.', style: const TextStyle(color: Colors.grey)),
+          Text(message, style: const TextStyle(color: Colors.grey)),
         ],
       )
     );

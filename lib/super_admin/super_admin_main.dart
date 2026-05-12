@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'super_admin_home.dart';
 import './widget/super_admin_bottom_nav.dart';
 import 'super_admin_tenant_page.dart';
+import 'super_admin_report_page.dart';
 
 class SuperAdminMain extends StatefulWidget {
   const SuperAdminMain({super.key});
@@ -17,7 +18,7 @@ class _SuperAdminMainState extends State<SuperAdminMain> {
   final List<Widget> _pages = [
     const SuperAdminHome(),
     const SuperAdminTenantPage(),
-    const Center(child: Text('Laporan Global (Coming Soon)')),
+    const SuperAdminReportPage(),
     const Center(child: Text('Pengaturan Platform (Coming Soon)')),
   ];
 

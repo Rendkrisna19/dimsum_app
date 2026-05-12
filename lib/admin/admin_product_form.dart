@@ -7,7 +7,7 @@ import '../theme/app_colors.dart';
 class AdminProductForm extends StatefulWidget {
   final String? docId; 
   final Map<String, dynamic>? data;
-  final String? idToko; // <--- WAJIB UNTUK MULTI-TENANT
+  final String? idToko; 
 
   const AdminProductForm({super.key, this.docId, this.data, this.idToko});
 

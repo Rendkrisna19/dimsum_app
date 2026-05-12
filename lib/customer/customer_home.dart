@@ -375,7 +375,7 @@ class _PromoCarouselWidgetState extends State<PromoCarouselWidget> {
   final List<String> _banners = [
     'assets/banner1.jpg',
     'assets/banner2.jpg',
-    'assets/banner3.jpg',
+    'assets/banner2.jpg',
   ];
 
   @override
